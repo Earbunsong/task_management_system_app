@@ -1,0 +1,31 @@
+import 'package:dio/dio.dart';
+import 'package:task_management_app/models/task.dart';
+import 'package:task_management_app/services/api_client.dart';
+
+class TaskService {
+  final _client = ApiClient()..init();
+
+  Future<List<Task>> getTasks() async {
+    final res = await _client.dio.get('/tasks/');
+    final list = res.data as List<dynamic>;
+    return list.map((e) => Task.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<Task> createTask(Map<String, dynamic> payload) async {
+    final res = await _client.dio.post('/tasks/', data: payload);
+    return Task.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<Task> updateTask(int id, Map<String, dynamic> payload) async {
+    final res = await _client.dio.put('/tasks/$id/', data: payload);
+    return Task.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteTask(int id) async {
+    await _client.dio.delete('/tasks/$id/');
+  }
+
+  Future<void> assignTask(int id, int userId) async {
+    await _client.dio.post('/tasks/$id/assign/', data: {'user_id': userId});
+  }
+}
