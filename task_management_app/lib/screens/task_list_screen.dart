@@ -111,7 +111,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   final t = _tasks[i];
                   return ListTile(
                     title: Text(t.title),
-                    subtitle: Text(t.description ?? ''),
+                    subtitle: Text(t.description),
                     onTap: () => _createOrEdit(task: t),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete),

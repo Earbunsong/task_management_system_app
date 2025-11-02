@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:task_management_app/core/routes.dart';
 import 'package:task_management_app/services/auth_service.dart';
 import 'package:task_management_app/widgets/app_button.dart';
 import 'package:task_management_app/widgets/app_text_field.dart';
@@ -36,6 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       await _auth.register(
+        name: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
@@ -152,8 +152,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       if (value == null || value.isEmpty) {
                         return 'Password is required';
                       }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                      if (value.length < 8) {
+                        return 'Password must be at least 8 characters';
                       }
                       return null;
                     },

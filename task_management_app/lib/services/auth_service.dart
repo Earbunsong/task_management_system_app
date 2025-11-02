@@ -11,41 +11,66 @@ class AuthService {
     _client.init();
   }
 
-  Future<void> register({required String email, required String password}) async {
-    await _client.dio.post('/auth/register/', data: {
-      'email': email,
-      'password': password,
-    });
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _client.dio.post('/auth/register/', data: {
+        'username': name,
+        'email': email,
+        'password': password,
+      });
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400) {
+        final errors = e.response?.data;
+        if (errors is Map && errors.containsKey('errors')) {
+          final errorMap = errors['errors'] as Map;
+          // Combine all error messages
+          final messages = <String>[];
+          errorMap.forEach((key, value) {
+            if (value is List) {
+              messages.addAll(value.map((e) => e.toString()));
+            }
+          });
+          throw Exception(messages.join('\n'));
+        } else if (errors is Map && errors.containsKey('message')) {
+          throw Exception(errors['message']);
+        }
+      }
+      throw Exception(e.message ?? 'Registration failed');
+    }
   }
 
   Future<UserProfile> login({required String email, required String password}) async {
-    final res = await _client.dio.post('/auth/login/', data: {
-      'email': email,
-      'password': password,
-    });
+    try {
+      final res = await _client.dio.post('/auth/login/', data: {
+        'email': email,
+        'password': password,
+      });
 
-    final token = res.data['token'] as String? ?? res.data['access'] as String?;
-    if (token == null) {
-      throw DioException(requestOptions: res.requestOptions, message: 'Token not found in response');
-    }
+      final token = res.data['access'] as String?;
+      if (token == null) {
+        throw Exception('Token not found in response');
+      }
 
-    await _storage.saveToken(token);
+      await _storage.saveToken(token);
 
-    // Save user info if provided in response
-    final userData = res.data['user'] as Map<String, dynamic>?;
-    if (userData != null) {
-      final user = UserProfile.fromJson(userData);
-      await _storage.saveUserInfo(
-        id: user.id.toString(),
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        userType: user.userType,
-      );
-      return user;
-    } else {
-      // If user data not in login response, fetch profile
+      // JWT login doesn't return user data, so fetch profile
       return await getProfile();
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 400 || e.response?.statusCode == 401) {
+        final errors = e.response?.data;
+        if (errors is Map) {
+          if (errors.containsKey('detail')) {
+            throw Exception(errors['detail']);
+          } else if (errors.containsKey('message')) {
+            throw Exception(errors['message']);
+          }
+        }
+      }
+      throw Exception(e.message ?? 'Login failed');
     }
   }
 

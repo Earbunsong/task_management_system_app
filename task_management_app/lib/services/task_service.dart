@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:task_management_app/models/task.dart';
 import 'package:task_management_app/services/api_client.dart';
 
@@ -7,6 +6,12 @@ class TaskService {
 
   Future<List<Task>> getTasks() async {
     final res = await _client.dio.get('/tasks/');
+    // Handle paginated response from Django REST Framework
+    if (res.data is Map && res.data.containsKey('results')) {
+      final list = res.data['results'] as List<dynamic>;
+      return list.map((e) => Task.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    // Handle non-paginated response (direct array)
     final list = res.data as List<dynamic>;
     return list.map((e) => Task.fromJson(e as Map<String, dynamic>)).toList();
   }
