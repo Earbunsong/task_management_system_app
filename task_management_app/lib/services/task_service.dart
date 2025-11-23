@@ -30,7 +30,21 @@ class TaskService {
     await _client.dio.delete('/tasks/$id/');
   }
 
-  Future<void> assignTask(int id, int userId) async {
-    await _client.dio.post('/tasks/$id/assign/', data: {'user_id': userId});
+  Future<void> assignTask(int taskId, int userId) async {
+    await _client.dio.post('/tasks/$taskId/assign/', data: {'user_id': userId});
+  }
+
+  Future<void> unassignTask(int taskId, int userId) async {
+    await _client.dio.delete('/tasks/$taskId/unassign/', data: {'user_id': userId});
+  }
+
+  Future<List<Map<String, dynamic>>> getUsers() async {
+    final res = await _client.dio.get('/tasks/users/');
+    return (res.data as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> getTaskCount() async {
+    final res = await _client.dio.get('/tasks/count/');
+    return res.data as Map<String, dynamic>;
   }
 }

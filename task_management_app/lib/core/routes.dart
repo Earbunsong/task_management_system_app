@@ -4,6 +4,8 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-password';
+  static const String verifyEmail = '/verify-email';
 
   // Main app routes
   static const String dashboard = '/dashboard';
@@ -19,6 +21,7 @@ class AppRoutes {
 
   // Admin
   static const String admin = '/admin';
+  static const String adminUsers = '/admin/users';
 
   // List of routes that don't require authentication
   static const List<String> publicRoutes = [
@@ -26,6 +29,8 @@ class AppRoutes {
     login,
     register,
     forgotPassword,
+    resetPassword,
+    verifyEmail,
   ];
 
   // List of routes that require authentication
@@ -43,5 +48,6 @@ class AppRoutes {
   // Admin only routes
   static const List<String> adminRoutes = [
     admin,
+    adminUsers,
   ];
 }

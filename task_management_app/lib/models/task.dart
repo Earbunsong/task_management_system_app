@@ -1,3 +1,28 @@
+import 'package:task_management_app/services/media_service.dart';
+
+class AssignedUser {
+  final int id;
+  final String username;
+  final String email;
+  final String role;
+
+  AssignedUser({
+    required this.id,
+    required this.username,
+    required this.email,
+    required this.role,
+  });
+
+  factory AssignedUser.fromJson(Map<String, dynamic> json) {
+    return AssignedUser(
+      id: json['id'] as int,
+      username: json['username'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      role: json['role'] as String? ?? 'basic',
+    );
+  }
+}
+
 class Task {
   final int id;
   final String title;
@@ -8,6 +33,8 @@ class Task {
   final int? ownerId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final List<MediaFile> mediaFiles;
+  final List<AssignedUser> assignedUsers;
 
   Task({
     required this.id,
@@ -19,6 +46,8 @@ class Task {
     this.ownerId,
     this.createdAt,
     this.updatedAt,
+    this.mediaFiles = const [],
+    this.assignedUsers = const [],
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -32,6 +61,26 @@ class Task {
         default:
           return status ?? 'pending'; // 'in_progress' stays the same
       }
+    }
+
+    // Parse media files if present
+    List<MediaFile> parseMediaFiles(dynamic mediaData) {
+      if (mediaData == null) return [];
+      if (mediaData is! List) return [];
+      return mediaData
+          .map((e) => e is Map<String, dynamic> ? MediaFile.fromJson(e) : null)
+          .whereType<MediaFile>()
+          .toList();
+    }
+
+    // Parse assigned users if present
+    List<AssignedUser> parseAssignedUsers(dynamic userData) {
+      if (userData == null) return [];
+      if (userData is! List) return [];
+      return userData
+          .map((e) => e is Map<String, dynamic> ? AssignedUser.fromJson(e) : null)
+          .whereType<AssignedUser>()
+          .toList();
     }
 
     return Task(
@@ -50,6 +99,8 @@ class Task {
       updatedAt: json['updated_at'] != null
           ? DateTime.tryParse(json['updated_at'] as String)
           : null,
+      mediaFiles: parseMediaFiles(json['media_files']),
+      assignedUsers: parseAssignedUsers(json['assigned_users']),
     );
   }
 

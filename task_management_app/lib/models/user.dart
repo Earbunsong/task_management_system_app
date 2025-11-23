@@ -4,6 +4,7 @@ class UserProfile {
   final String name;
   final String role;
   final String userType;
+  final bool isVerified;
 
   UserProfile({
     required this.id,
@@ -11,6 +12,7 @@ class UserProfile {
     required this.name,
     required this.role,
     required this.userType,
+    required this.isVerified,
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class UserProfile {
       name: json['name'] as String? ?? json['username'] as String? ?? '',
       role: json['role'] as String? ?? 'basic',
       userType: json['user_type'] as String? ?? 'basic',
+      isVerified: json['is_verified'] as bool? ?? false,
     );
   }
 
@@ -30,6 +33,7 @@ class UserProfile {
       'name': name,
       'role': role,
       'user_type': userType,
+      'is_verified': isVerified,
     };
   }
 }

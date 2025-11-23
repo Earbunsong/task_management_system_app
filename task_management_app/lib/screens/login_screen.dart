@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _loading = true);
 
     try {
-      await _auth.login(
+      final user = await _auth.login(
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
@@ -39,18 +39,228 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       // Navigate to dashboard on successful login
+      // (User is already verified if we get here)
       Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+    } catch (e) {
+      if (!mounted) return;
+
+      // Check if error is due to specific reasons
+      final errorMessage = e.toString();
+
+      if (errorMessage.contains('account_disabled') ||
+          errorMessage.contains('account has been disabled')) {
+        // Show account disabled dialog
+        _showAccountDisabledDialog();
+      } else if (errorMessage.contains('email_not_verified') ||
+          errorMessage.contains('verify your email')) {
+        // Show verification required dialog
+        _showVerificationRequiredDialog();
+      } else {
+        // Show generic error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Login failed: ${errorMessage.replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showVerificationRequiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: Icon(
+          Icons.mark_email_unread,
+          color: Colors.red,
+          size: 48,
+        ),
+        title: const Text('Email Verification Required'),
+        content: const Text(
+          'You must verify your email address before logging in.\n\n'
+          'Please check your inbox for a verification link, or request a new one.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _resendVerificationEmail();
+            },
+            icon: const Icon(Icons.email),
+            label: const Text('Resend Verification Email'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAccountDisabledDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        icon: Icon(
+          Icons.block,
+          color: Colors.red,
+          size: 56,
+        ),
+        title: const Text(
+          'Account Disabled',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.red,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your account has been disabled by an administrator.',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.orange[700],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You cannot access your account until it is re-enabled.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'If you believe this is a mistake, please contact our support team:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.email, size: 16, color: Colors.grey[700]),
+                      const SizedBox(width: 8),
+                      Text(
+                        'support@taskmanager.com',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.phone, size: 16, color: Colors.grey[700]),
+                      const SizedBox(width: 8),
+                      Text(
+                        '+1 (555) 123-4567',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // You could add functionality to open email client here
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please contact support@taskmanager.com for assistance'),
+                  duration: Duration(seconds: 5),
+                  backgroundColor: Colors.blue,
+                ),
+              );
+            },
+            icon: const Icon(Icons.email),
+            label: const Text('Contact Support'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _resendVerificationEmail() async {
+    try {
+      await _auth.resendVerificationEmail(_emailCtrl.text.trim());
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Verification email sent! Please check your inbox.'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Login failed: ${e.toString()}'),
+          content: Text('Failed to send verification email: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -133,12 +343,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
-                        // TODO: Navigate to forgot password screen
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Forgot password feature coming soon'),
-                          ),
-                        );
+                        Navigator.of(context).pushNamed(AppRoutes.forgotPassword);
                       },
                       child: const Text('Forgot Password?'),
                     ),
