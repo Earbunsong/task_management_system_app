@@ -106,10 +106,26 @@ class AuthService {
     await _client.dio.post('/auth/forgot-password/', data: {'email': email});
   }
 
-  Future<void> resetPassword({required String token, required String newPassword}) async {
+  Future<void> resetPassword({
+    required String uidb64,
+    required String token,
+    required String newPassword,
+  }) async {
     await _client.dio.post('/auth/reset-password/', data: {
+      'uidb64': uidb64,
       'token': token,
-      'password': newPassword,
+      'new_password': newPassword,
     });
+  }
+
+  Future<void> verifyEmail({
+    required String uidb64,
+    required String token,
+  }) async {
+    await _client.dio.get('/auth/verify/$uidb64/$token/');
+  }
+
+  Future<void> resendVerificationEmail(String email) async {
+    await _client.dio.post('/auth/resend-verification/', data: {'email': email});
   }
 }

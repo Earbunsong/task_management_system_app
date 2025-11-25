@@ -32,6 +32,24 @@ class PaymentService {
     return res.data as Map<String, dynamic>;
   }
 
+  // KHQR payment methods
+  Future<Map<String, dynamic>> createKHQRPayment({required String plan}) async {
+    final res = await _client.dio.post('/payment/khqr/create-payment/', data: {
+      'plan': plan, // 'monthly' or 'annual'
+    });
+    // Backend returns { qr_code: '...', qr_string: '...', transaction_id: '...' }
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> checkKHQRPaymentStatus({
+    required String transactionId,
+  }) async {
+    final res = await _client.dio.post('/payment/khqr/check-status/', data: {
+      'transaction_id': transactionId,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
   // Common methods (work with both Stripe and PayPal)
   Future<Map<String, dynamic>> getSubscription() async {
     final res = await _client.dio.get('/payment/subscription/');

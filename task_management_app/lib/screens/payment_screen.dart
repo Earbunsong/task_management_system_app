@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:task_management_app/services/payment_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -108,6 +111,13 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
               subtitle: const Text('Pay with PayPal account'),
               onTap: () => Navigator.of(ctx).pop('paypal'),
             ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.qr_code, color: Colors.green),
+              title: const Text('KHQR'),
+              subtitle: const Text('Pay with Khmer QR'),
+              onTap: () => Navigator.of(ctx).pop('khqr'),
+            ),
           ],
         ),
       ),
@@ -117,28 +127,47 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
 
     setState(() => _loading = true);
     try {
-      String url = '';
+      if (provider == 'khqr') {
+        // Handle KHQR payment
+        final result = await _service.createKHQRPayment(plan: plan);
+        setState(() => _loading = false);
 
-      if (provider == 'stripe') {
-        url = await _service.createCheckoutSession(plan: plan);
-      } else if (provider == 'paypal') {
-        url = await _service.createPayPalOrder(plan: plan);
-      }
-
-      if (url.isNotEmpty) {
-        final uri = Uri.parse(url);
-        final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (!launched && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not open payment page'),
-              backgroundColor: Colors.orange,
-            ),
+        if (mounted) {
+          // Show QR code dialog
+          _showKHQRDialog(
+            qrCode: result['qr_code'] ?? '',
+            transactionId: result['transaction_id'] ?? '',
+            amount: result['amount']?.toString() ?? '0',
+            currency: result['currency'] ?? 'KHR',
           );
         }
+      } else {
+        // Handle Stripe/PayPal payment
+        String url = '';
+
+        if (provider == 'stripe') {
+          url = await _service.createCheckoutSession(plan: plan);
+        } else if (provider == 'paypal') {
+          url = await _service.createPayPalOrder(plan: plan);
+        }
+
+        if (url.isNotEmpty) {
+          final uri = Uri.parse(url);
+          final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          if (!launched && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not open payment page'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+        setState(() => _loading = false);
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Payment error: ${e.toString()}'),
@@ -146,9 +175,66 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showKHQRDialog({
+    required String qrCode,
+    required String transactionId,
+    required String amount,
+    required String currency,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _KHQRPaymentDialog(
+        qrCode: qrCode,
+        transactionId: transactionId,
+        amount: amount,
+        currency: currency,
+        onCheckStatus: () async {
+          try {
+            final result = await _service.checkKHQRPaymentStatus(
+              transactionId: transactionId,
+            );
+
+            if (result['paid'] == true) {
+              Navigator.of(ctx).pop();
+              await _load();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(result['message'] ?? 'Payment successful!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(result['message'] ?? 'Payment not yet received'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: ${e.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        },
+        onCancel: () {
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
   }
 
   Future<void> _cancel() async {
@@ -295,6 +381,9 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
       } else if (provider.toLowerCase() == 'paypal') {
         providerIcon = Icons.payment;
         providerLabel = 'PayPal';
+      } else if (provider.toLowerCase() == 'khqr') {
+        providerIcon = Icons.qr_code;
+        providerLabel = 'KHQR';
       }
     }
 
@@ -617,6 +706,8 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
           providerIcon = Icons.credit_card;
         } else if (provider.toLowerCase() == 'paypal') {
           providerIcon = Icons.payment;
+        } else if (provider.toLowerCase() == 'khqr') {
+          providerIcon = Icons.qr_code;
         }
 
         return Card(
@@ -664,5 +755,214 @@ class _PaymentScreenState extends State<PaymentScreen> with WidgetsBindingObserv
         );
       }).toList(),
     );
+  }
+}
+
+class _KHQRPaymentDialog extends StatefulWidget {
+  final String qrCode;
+  final String transactionId;
+  final String amount;
+  final String currency;
+  final Future<void> Function() onCheckStatus;
+  final VoidCallback onCancel;
+
+  const _KHQRPaymentDialog({
+    required this.qrCode,
+    required this.transactionId,
+    required this.amount,
+    required this.currency,
+    required this.onCheckStatus,
+    required this.onCancel,
+  });
+
+  @override
+  State<_KHQRPaymentDialog> createState() => _KHQRPaymentDialogState();
+}
+
+class _KHQRPaymentDialogState extends State<_KHQRPaymentDialog> {
+  bool _checking = false;
+  Timer? _autoCheckTimer;
+  int _checkCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start auto-checking payment status every 5 seconds
+    _startAutoCheck();
+  }
+
+  @override
+  void dispose() {
+    // Cancel the timer when dialog is closed
+    _autoCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoCheck() {
+    // Check immediately after 3 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) _checkPaymentStatus();
+    });
+
+    // Then check every 5 seconds
+    _autoCheckTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted && !_checking) {
+        _checkPaymentStatus();
+      }
+
+      // Stop after 20 checks (100 seconds / ~1.5 minutes)
+      _checkCount++;
+      if (_checkCount >= 20) {
+        timer.cancel();
+      }
+    });
+  }
+
+  Future<void> _checkPaymentStatus() async {
+    if (_checking) return;
+
+    setState(() => _checking = true);
+
+    try {
+      await widget.onCheckStatus();
+    } catch (e) {
+      // If we get authentication error (401), stop auto-checking
+      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
+        _autoCheckTimer?.cancel();
+        if (mounted) {
+          setState(() => _checking = false);
+        }
+        return;
+      }
+    }
+
+    if (mounted) setState(() => _checking = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.qr_code, color: Colors.green),
+          const SizedBox(width: 8),
+          const Text('KHQR Payment'),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Scan QR code to pay',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Image.memory(
+                _base64ToImage(widget.qrCode),
+                width: 250,
+                height: 250,
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Amount: ${widget.amount} ${widget.currency}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Transaction ID: ${widget.transactionId.substring(0, 8)}...',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_checking) ...[
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  _checking
+                      ? 'Checking payment status...'
+                      : 'Auto-checking every 5 seconds',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _checking ? Colors.blue : Colors.grey,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: widget.onCancel,
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _checking ? null : _checkPaymentStatus,
+          icon: _checking
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh),
+          label: const Text('Check Now'),
+        ),
+      ],
+    );
+  }
+
+  Uint8List _base64ToImage(String base64String) {
+    try {
+      // Remove data URI prefix if present
+      String cleanBase64 = base64String;
+      if (base64String.contains(',')) {
+        cleanBase64 = base64String.split(',')[1];
+      }
+      return base64Decode(cleanBase64);
+    } catch (e) {
+      // Return empty byte array if decode fails
+      return Uint8List(0);
+    }
   }
 }

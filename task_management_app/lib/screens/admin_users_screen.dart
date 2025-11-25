@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:task_management_app/services/admin_service.dart';
+import 'package:task_management_app/services/auth_service.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({super.key});
@@ -10,14 +11,29 @@ class AdminUsersScreen extends StatefulWidget {
 
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
   final _adminService = AdminService();
+  final _authService = AuthService();
   List<AdminUser> _users = [];
   bool _loading = true;
   String? _errorMessage;
+  int? _currentUserId;
 
   @override
   void initState() {
     super.initState();
+    _loadCurrentUser();
     _loadUsers();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final profile = await _authService.getProfile();
+      setState(() {
+        _currentUserId = profile.id;
+      });
+    } catch (e) {
+      // If we can't get the current user, we'll just disable the functionality
+      print('Failed to load current user: $e');
+    }
   }
 
   Future<void> _loadUsers() async {
@@ -362,9 +378,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                   ),
                                 ],
                               ),
-                              trailing: user.role.toLowerCase() == 'admin'
+                              trailing: user.id == _currentUserId
                                   ? Tooltip(
-                                      message: 'Cannot disable admin users',
+                                      message: 'Cannot disable your own account',
                                       child: Icon(
                                         Icons.lock,
                                         color: Colors.grey[400],
